@@ -23,9 +23,9 @@ float LinuxParser::MemoryUtilization() {
     while (std::getline(filestream, line)) {
       std::istringstream linestream(line);
       while (linestream >> key >> value) {
-        if (key == "MemTotal:")
+        if (key == keyMemTotalString)
           mem_total = static_cast<float>(value * 9.5367e-7);
-        else if (key == "MemFree:") {
+        else if (key == keyMemFreeString) {
           mem_free = static_cast<float>(value * 9.5367e-7);
           break;
         }
@@ -40,16 +40,16 @@ float LinuxParser::MemoryUtilization() {
 
 // Read and return the system uptime
 long LinuxParser::UpTime() {
-  long uptime = 0.0l, secs_idle = 0.0l;
+  long uptime = 0.0l;
   string line = "";
   std::ifstream stream(kProcDirectory + kUptimeFilename);
   if (stream.is_open()) {
     std::getline(stream, line);
     std::istringstream linestream(line);
-    linestream >> uptime >> secs_idle;
+    linestream >> uptime;
   }
 
-  return uptime + secs_idle;
+  return uptime;
 }
 
 // BONUS: Update this to use std::filesystem
@@ -82,7 +82,7 @@ int LinuxParser::TotalProcesses() {
     while (std::getline(filestream, line)) {
       std::istringstream linestream(line);
       while (linestream >> key >> value) {
-        if (key == "processes") return value;
+        if (key == keyProcesses) return value;
       }
     }
   }
@@ -99,7 +99,7 @@ int LinuxParser::RunningProcesses() {
     while (std::getline(filestream, line)) {
       std::istringstream linestream(line);
       while (linestream >> key >> value) {
-        if (key == "procs_running") return value;
+        if (key == keyRunningProcesses) return value;
       }
     }
   }
@@ -118,7 +118,7 @@ string LinuxParser::OperatingSystem() {
       std::replace(line.begin(), line.end(), '"', ' ');
       std::istringstream linestream(line);
       while (linestream >> key >> value) {
-        if (key == "PRETTY_NAME") {
+        if (key == keyOperatingSystem) {
           std::replace(value.begin(), value.end(), '_', ' ');
           return value;
         }
@@ -226,6 +226,8 @@ string LinuxParser::Command(int pid) {
     linestream >> cmd;
   }
 
+  cmd  = cmd.substr(0, 50) + "..."; 
+
   return cmd;
 }
 
@@ -238,7 +240,9 @@ string LinuxParser::Ram(int pid) {
     while (std::getline(stream, line)) {
       std::istringstream linestream(line);
       linestream >> vm_size >> mem;
-      if (vm_size == "VmSize:") {
+      // VmRSS intead VmSize (for physical RAM usage)
+      // https://man7.org/linux/man-pages/man5/proc.5.html
+      if (vm_size == keyRam) {
         break;
       }
     }
@@ -255,7 +259,7 @@ string LinuxParser::Uid(int pid) {
     while (std::getline(stream, line)) {
       std::istringstream linestream(line);
       while (linestream >> uid_pid >> uid) {
-        if (uid_pid == "Uid:") {
+        if (uid_pid == keyUID) {
           break;
         }
       }
@@ -287,7 +291,7 @@ string LinuxParser::User(int pid) {
 
 // Read and return the uptime of a process
 long LinuxParser::UpTime(int pid) {
-  int aux = 0, uptime = 0;
+  int aux = 0, uptimepid = 0;
   string aux_s = "", line = "";
   std::ifstream stream(kProcDirectory + to_string(pid) + kStatFilename);
   if (stream.is_open()) {
@@ -295,8 +299,10 @@ long LinuxParser::UpTime(int pid) {
     std::istringstream linestream(line);
     linestream >> aux >> aux_s >> aux_s >> aux >> aux >> aux >> aux >> aux >>
         aux >> aux >> aux >> aux >> aux >> aux >> aux >> aux >> aux >> aux >>
-        aux >> aux >> aux >> uptime;
+        aux >> aux >> aux >> uptimepid;
   }
 
-  return static_cast<long>(uptime / sysconf(_SC_CLK_TCK));
+  long uptime = LinuxParser::UpTime();
+
+  return static_cast<long>((uptime - (uptimepid / sysconf(_SC_CLK_TCK))));
 }

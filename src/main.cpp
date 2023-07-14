@@ -3,7 +3,7 @@
 
 int main() {
   System system;
-  NCursesDisplay::Display(system);
+  NCursesDisplay::Display(system, 15);
   return 0;
 }
 
